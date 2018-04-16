@@ -1,0 +1,25 @@
+FROM alpine:latest as certs
+MAINTAINER 	Leonard Schellenberg <leonard.schellenberg@gmail.com>
+
+RUN apk update
+RUN apk add ca-certificates
+RUN mkdir -p /go/src/app
+
+
+FROM scratch
+
+COPY --from=certs /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
+COPY --from=certs /go/src/app /go/src/app
+
+
+EXPOSE 8080
+
+HEALTHCHECK --interval=10s CMD wget -qO- localhost:8085/healthcheck
+
+
+WORKDIR /go/src/app
+COPY static  /go/src/app/static
+COPY index /go/src/app/index
+
+CMD ["/go/src/app/index"]
+

@@ -1,6 +1,10 @@
 package gox
 
-import "bytes"
+import (
+	"bytes"
+	"fmt"
+	"reflect"
+)
 
 func CompareStringList(s1 []string, s2 []string) bool {
 	if len(s1) != len(s2) {
@@ -77,4 +81,26 @@ func CommaSeparatedString(set []string) string {
 	}
 
 	return buffer.String()
+}
+
+func StringListFromInterfaceList(val []interface{}) ([]string, error) {
+	result := make([]string, len(val))
+
+	for k, v := range val {
+		s, ok := v.(string)
+		if !ok {
+			return nil, fmt.Errorf("couldn't cast interface of type %v to string", reflect.TypeOf(v))
+		}
+		result[k] = s
+	}
+	return result, nil
+}
+
+func StringListContains(value string, list []string) bool{
+	for _,v := range list{
+		if v == value {
+			return true
+		}
+	}
+	return false
 }

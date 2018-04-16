@@ -5,6 +5,8 @@ import (
 	"net/http"
 	"time"
 	"log"
+	"github.com/rs/cors"
+	"github.com/gorilla/mux"
 )
 
 var LogRequest = true
@@ -30,4 +32,32 @@ func LoggingHandler(next http.Handler) http.Handler {
 	}
 
 	return http.HandlerFunc(fn)
+}
+
+
+func CorsHandler(next http.Handler) http.Handler {
+	fn := func(w http.ResponseWriter, r *http.Request) {
+		t1 := time.Now()
+		next.ServeHTTP(w, r)
+		t2 := time.Now()
+		if (LogRequest) {
+			log.Printf("[%s] %q  %v", r.Method, r.URL.String(), t2.Sub(t1))
+		}
+	}
+
+	return http.HandlerFunc(fn)
+}
+
+
+func StartServer(router *mux.Router, port string) {
+	log.Println("Starting server on port: ", port)
+
+	handler := cors.Default().Handler(router)
+	log.Fatal(http.ListenAndServe(port, handler))
+}
+
+func setupResponse(w *http.ResponseWriter, req *http.Request) {
+	(*w).Header().Set("Access-Control-Allow-Origin", "*")
+	(*w).Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS, PUT, DELETE")
+	(*w).Header().Set("Access-Control-Allow-Headers", "Accept, Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization")
 }
