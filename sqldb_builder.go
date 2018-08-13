@@ -84,7 +84,7 @@ func (builder *SQLDBBuilder) OpenAndInitializeDB(forceRecreate bool) (*SQLDB, *S
 		return nil, nil, err
 	}
 
-	err = db.InitializeDatabase(config.DatabaseName, config.Schema, config.Tables, forceRecreate)
+	err = db.MaybeCreateDatabase(config.DatabaseName)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -101,6 +101,12 @@ func (builder *SQLDBBuilder) OpenAndInitializeDB(forceRecreate bool) (*SQLDB, *S
 	if err != nil {
 		return nil, nil, err
 	}
+
+	err = db.InitializeDatabase(config.DatabaseName, config.Schema, config.Tables, forceRecreate)
+	if err != nil {
+		return nil, nil, err
+	}
+
 
 	err = db.DB.Ping()
 	if err != nil {

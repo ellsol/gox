@@ -7,9 +7,16 @@ import (
 	"log"
 	"github.com/rs/cors"
 	"github.com/gorilla/mux"
+	"strings"
+	"mime"
 )
 
 var LogRequest = true
+
+const(
+	ContentTypeJson = "application/json"
+	ContentTypeCsb = "text/csv"
+)
 
 type healthcheckResponse struct {
 	Status string `json:"status"`
@@ -60,4 +67,22 @@ func setupResponse(w *http.ResponseWriter, req *http.Request) {
 	(*w).Header().Set("Access-Control-Allow-Origin", "*")
 	(*w).Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS, PUT, DELETE")
 	(*w).Header().Set("Access-Control-Allow-Headers", "Accept, Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization")
+}
+
+func HasContentType(r *http.Request, mimetype string) bool {
+	contentType := r.Header.Get("Content-type")
+	if contentType == "" {
+		return mimetype == "application/octet-stream"
+	}
+
+	for _, v := range strings.Split(contentType, ",") {
+		t, _, err := mime.ParseMediaType(v)
+		if err != nil {
+			break
+		}
+		if t == mimetype {
+			return true
+		}
+	}
+	return false
 }

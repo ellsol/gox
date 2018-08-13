@@ -11,19 +11,22 @@ const (
 	CreateDatabaseStatement   = "CREATE DATABASE %v;"
 	DropDatabaseStatement     = "DROP DATABASE IF EXISTS %v;"
 	CreateSchemaStatement     = "CREATE SCHEMA %v;"
+	DropSchemaStatement       = "DROP SCHEMA IF EXISTS %v CASCADE;"
+	CreateTableStatement      = "CREATE TABLE %v %v;"
 	DropTableStatement        = "DROP TABLE IF EXISTS %v;"
 	DeleteStatement           = "DELETE FROM %v WHERE %v = $1;"
 	InsertStatementWithReturn = "INSERT INTO %v(%v) VALUES(%v) returning %v;"
 	InsertStatement           = "INSERT INTO %v(%v) VALUES(%v);"
 	NumberOfRowsStatement     = "SELECT count(*) FROM %v;"
+	MaxStatement              = "SELECT max(%v) FROM %v;"
 )
 
 type SQLDB struct {
 	DB sql.DB
 }
 
-
 func OpenSqlDB(info *SQLDBInfo) (*SQLDB, error) {
+	fmt.Println("Trying to open connection to postgres with: ", info.dbinfo())
 	db, err := sql.Open("postgres", info.dbinfo())
 
 	if err != nil {
@@ -139,6 +142,17 @@ func (pg *SQLDB) MaybeCreateScheme(scheme string) error {
 	return nil
 }
 
+func (pg *SQLDB) DropSchemaIfExist(schema string) (error) {
+	statement := fmt.Sprintf(DropSchemaStatement, schema)
+	stmt, err := pg.DB.Prepare(statement)
+	defer stmt.Close()
+	_, err = stmt.Exec()
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 // Create Table
 func (pg *SQLDB) MaybeCreateTable(table SQLTable) (error) {
 	stmt, err := pg.DB.Prepare(table.CreateTableStatement())
@@ -159,18 +173,13 @@ func (pg *SQLDB) MaybeCreateTable(table SQLTable) (error) {
 
 func (db *SQLDB) InitializeDatabase(databaseName string, schema string, tables map[string]SQLTable, forceRecreate bool) error {
 	if forceRecreate {
-		err := db.DropDatabaseIfExist(databaseName)
+		err := db.DropSchemaIfExist(schema)
 		if err != nil {
 			return err
 		}
 	}
 
-	err := db.MaybeCreateDatabase(databaseName)
-	if err != nil {
-		return err
-	}
-
-	err = db.MaybeCreateScheme(schema)
+	err := db.MaybeCreateScheme(schema)
 	if err != nil {
 		return err
 	}
@@ -210,6 +219,8 @@ func (pg *SQLDB) DropTableIfExist(table SQLTable) (error) {
 // insert row
 func (pg *SQLDB) Insert(table SQLTable, values []interface{}) (int, error) {
 	statement := GetPostgresInsertStatementNoIncrement(table)
+	fmt.Println(statement)
+	fmt.Println(values)
 	o, err := pg.DB.Query(statement, values...)
 	if err != nil {
 		return -1, err
@@ -219,6 +230,31 @@ func (pg *SQLDB) Insert(table SQLTable, values []interface{}) (int, error) {
 	o.Close()
 
 	return lastInsertId, nil
+}
+
+func (pg *SQLDB) Update(table SQLTable, values []interface{}) error {
+	statement := CreateUpdateStatement(table)
+	return pg.UpdateWithStatement(statement, table, values)
+}
+
+
+func (pg *SQLDB) UpdateWithStatement(statement string, table SQLTable, values []interface{}) error {
+	updated, err := pg.DB.Exec(statement, values...)
+
+	if err != nil {
+		return err
+	}
+
+	count, err := updated.RowsAffected()
+	if err != nil {
+		return err
+	}
+
+	if count != 1 {
+		return fmt.Errorf("failed to update %v", table.TableName())
+	}
+
+	return nil
 }
 
 // Delete Row
@@ -233,7 +269,7 @@ func (pg *SQLDB) Delete(key interface{}, table SQLTable) error {
 }
 
 // Number Of Rows
-func (pg *SQLDB) NumberOfRows(table SQLTable) (int, error) {
+func (pg *SQLDB) Count(table SQLTable) (int, error) {
 	sqlStatement := fmt.Sprintf(NumberOfRowsStatement, table.TableName())
 	rows, err := pg.DB.Query(sqlStatement)
 	if err != nil {
@@ -247,6 +283,28 @@ func (pg *SQLDB) NumberOfRows(table SQLTable) (int, error) {
 			return -1, err
 		}
 		return count, nil
+	}
+	return -1, nil
+}
+
+// Number Of Rows
+func (pg *SQLDB) Max(table SQLTable, column string) (int64, error) {
+	sqlStatement := fmt.Sprintf(MaxStatement, column, table.TableName())
+	rows, err := pg.DB.Query(sqlStatement)
+	if err != nil {
+		return -1, err
+	}
+	defer rows.Close()
+	if rows.Next() {
+		var max int64
+
+		err := rows.Scan(&max)
+
+		if err != nil {
+			return 0, nil
+		}
+
+		return max, nil
 	}
 	return -1, nil
 }

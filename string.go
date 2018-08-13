@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"reflect"
+	"strings"
 )
 
 func CompareStringList(s1 []string, s2 []string) bool {
@@ -99,6 +100,16 @@ func StringListFromInterfaceList(val []interface{}) ([]string, error) {
 func StringListContains(value string, list []string) bool{
 	for _,v := range list{
 		if v == value {
+			return true
+		}
+	}
+	return false
+}
+
+
+func StringListContainsWord(value string, list []string) bool{
+	for _,v := range list{
+		if strings.Contains(v, value) {
 			return true
 		}
 	}
