@@ -9,13 +9,14 @@ import (
 	"github.com/gorilla/mux"
 	"strings"
 	"mime"
+	"fmt"
 )
 
 var LogRequest = true
 
-const(
+const (
 	ContentTypeJson = "application/json"
-	ContentTypeCsb = "text/csv"
+	ContentTypeCsb  = "text/csv"
 )
 
 type healthcheckResponse struct {
@@ -41,7 +42,6 @@ func LoggingHandler(next http.Handler) http.Handler {
 	return http.HandlerFunc(fn)
 }
 
-
 func CorsHandler(next http.Handler) http.Handler {
 	fn := func(w http.ResponseWriter, r *http.Request) {
 		t1 := time.Now()
@@ -54,7 +54,6 @@ func CorsHandler(next http.Handler) http.Handler {
 
 	return http.HandlerFunc(fn)
 }
-
 
 func StartServer(router *mux.Router, port string) {
 	log.Println("Starting server on port: ", port)
@@ -85,4 +84,38 @@ func HasContentType(r *http.Request, mimetype string) bool {
 		}
 	}
 	return false
+}
+
+func showAllRoutes(router *mux.Router) {
+	router.Walk(func(route *mux.Route, router *mux.Router, ancestors []*mux.Route) error {
+		t, err := route.GetPathTemplate()
+		if err != nil {
+			return err
+		}
+		fmt.Println(t)
+		return nil
+	})
+}
+
+type HttpResponseMeta struct {
+	StatusCode int
+	Error      error
+}
+
+var HttpResponseOk = &HttpResponseMeta{
+	StatusCode: http.StatusOK,
+}
+
+func HttpInternalError(err error) *HttpResponseMeta {
+	return &HttpResponseMeta{
+		Error:      err,
+		StatusCode: http.StatusInternalServerError,
+	}
+}
+
+func HttpResourceNotFound(label string, resource string) *HttpResponseMeta {
+	return &HttpResponseMeta{
+		Error:      fmt.Errorf("%v %v not found", label, resource),
+		StatusCode: http.StatusNotFound,
+	}
 }

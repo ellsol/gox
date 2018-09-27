@@ -219,8 +219,6 @@ func (pg *SQLDB) DropTableIfExist(table SQLTable) (error) {
 // insert row
 func (pg *SQLDB) Insert(table SQLTable, values []interface{}) (int, error) {
 	statement := GetPostgresInsertStatementNoIncrement(table)
-	fmt.Println(statement)
-	fmt.Println(values)
 	o, err := pg.DB.Query(statement, values...)
 	if err != nil {
 		return -1, err

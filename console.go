@@ -12,13 +12,38 @@ const (
 	ConsoleColorSuffix       = "\x1b[0m"
 	ConsoleColorYellow       = "33"
 	ConsoleColorBrightBlue   = "94"
+	ConsoleColorBrightRed    = "91"
 	ConsoleColorBlue         = "34"
 	ConsoleColorRed          = "31"
 	ConsoleColorGreen        = "32"
 )
 
-func LogConsoleWriteLabeledValueI(label string, value interface{})  {
+func LogConsoleWriteLabeledValueI(label string, value interface{}) {
 	log.Println(ConsoleWriteLabeledValueI(label, value))
+}
+
+func ConsoleInBlue(value interface{}) string {
+	return ConsoleInColor("34", value)
+}
+
+func ConsoleInRed(value interface{}) string {
+	return ConsoleInColor("31", value)
+}
+
+func ConsoleInRose(value interface{}) string {
+	return ConsoleInColor(ConsoleColorBrightRed, value)
+}
+
+func ConsoleInColor(color string, value interface{}) string {
+	bb := &bytes.Buffer{}
+
+	bb.WriteString(ConsoleColorPrefixFirst)
+	bb.WriteString(color)
+	bb.WriteString(ConsoleColorPrefixSecond)
+	bb.WriteString(fmt.Sprintf("%v", value))
+	bb.WriteString(ConsoleColorSuffix)
+
+	return bb.String()
 }
 
 func ConsoleWriteLabeledValueI(label string, value interface{}) string {
