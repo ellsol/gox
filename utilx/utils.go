@@ -1,10 +1,10 @@
-package gox
+package utilx
 
 import "fmt"
 
 
 const(
-	MAX_INT64 = 9223372036854775807
+	MaxInt64 = 9223372036854775807
 )
 
 func NotImplementedYet(fun string) error {

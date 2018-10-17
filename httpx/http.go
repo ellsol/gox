@@ -1,4 +1,4 @@
-package gox
+package httpx
 
 import (
 	"encoding/json"

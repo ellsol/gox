@@ -1,11 +1,11 @@
-package gox
+package sqlx
 
 import (
 	"fmt"
 	"github.com/Leondroids/gox"
 )
 
-func NewStatementBuilder(selectors string, tableName string) (*StatementBuilder) {
+func NewSelectStatementBuilder(selectors string, tableName string) (*StatementBuilder) {
 	return &StatementBuilder{
 		Statement:         fmt.Sprintf("SELECT %v FROM %v", selectors, tableName),
 		ConditionParams:   make([]interface{}, 0),
@@ -60,15 +60,15 @@ func (it *StatementBuilder) AddInCondition(conditionLabel string, values []strin
 	}
 }
 
-func (it *StatementBuilder) MaybeAddStringCondition(conditionLabel string, conditionValue string) *StatementBuilder {
+func (it *StatementBuilder) MaybeAddEqualStringCondition(conditionLabel string, conditionValue string) *StatementBuilder {
 	if conditionValue == "" {
 		return it
 	}
 
-	return it.AddCondition(conditionLabel, conditionValue)
+	return it.AddEqualCondition(conditionLabel, conditionValue)
 }
 
-func (it *StatementBuilder) AddCondition(conditionLabel string, conditionValue interface{}) *StatementBuilder {
+func (it *StatementBuilder) AddEqualCondition(conditionLabel string, conditionValue interface{}) *StatementBuilder {
 	newStatement := ""
 	if !it.HasOneCondition {
 		newStatement = fmt.Sprintf("%v WHERE %v = $%v", it.Statement, conditionLabel, it.ConditionPosition)
@@ -106,19 +106,19 @@ func (it *StatementBuilder) AddDateRange(conditionLabel string, dateFrom int64, 
 	return it.AddRange(conditionLabel, df, dt)
 }
 
-func (it *StatementBuilder) AddBlockRange(conditionLabel string, blockFrom int64, blockTo int64) *StatementBuilder {
-	if blockFrom == 0 && blockTo == 0 {
+func (it *StatementBuilder) AddInt64Range(conditionLabel string, from int64, to int64) *StatementBuilder {
+	if from == 0 && to == 0 {
 		return it
 	}
 	var bf int64 = 0
 	var bt int64 = 9223372036854775807
 
-	if blockFrom > 0 {
-		bf = blockFrom
+	if from > 0 {
+		bf = from
 	}
 
-	if blockTo > 0 {
-		bt = blockTo
+	if to > 0 {
+		bt = to
 	}
 
 	return it.AddRange(conditionLabel, bf, bt)

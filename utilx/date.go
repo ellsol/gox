@@ -1,4 +1,4 @@
-package gox
+package utilx
 
 import "time"
 

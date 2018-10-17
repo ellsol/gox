@@ -1,10 +1,11 @@
-package gox
+package sqlx
 
 import (
 	"strings"
 	"fmt"
 	"database/sql"
 	_ "github.com/lib/pq"
+	"github.com/ellsol/gox/typesx"
 )
 
 const (
@@ -25,9 +26,16 @@ type SQLDB struct {
 	DB sql.DB
 }
 
-func OpenSqlDB(info *SQLDBInfo) (*SQLDB, error) {
+type SQLTable interface {
+	ColumnNames() []string
+	Name() string
+	KeyTag() string
+	CreateStatement() string
+}
+
+func OpenSqlDB(params string) (*SQLDB, error) {
 	fmt.Println("Trying to open connection to postgres with: ", info.dbinfo())
-	db, err := sql.Open("postgres", info.dbinfo())
+	db, err := sql.Open("postgres", params)
 
 	if err != nil {
 		return nil, err
@@ -40,57 +48,28 @@ func OpenSqlDB(info *SQLDBInfo) (*SQLDB, error) {
 	}, nil
 }
 
-type SQLDBInfo struct {
-	Host     string
-	User     string
-	Password string
-	DBName   string
+
+func (db *SQLDB) InitializeDatabase(databaseName string, schema string, tables map[string]SQLTable, forceRecreate bool) error {
+	if forceRecreate {
+		err := db.DropSchemaIfExist(schema)
+		if err != nil {
+			return err
+		}
+	}
+
+	err := db.MaybeCreateScheme(schema)
+	if err != nil {
+		return err
+	}
+
+	err = db.MaybeInitializeTables(tables)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
-func (pi *SQLDBInfo) dbinfo() string {
-	return fmt.Sprintf("host=%s user=%s password=%s dbname=%s sslmode=disable", pi.Host, pi.User, pi.Password, pi.DBName)
-}
-
-type SQLTable interface {
-	DataModelTag() []string
-	TableName() string
-	KeyTag() string
-	CreateTableStatement() string
-}
-
-// Statements
-
-/*
-	Transforms a table a model key list [tag1, tag2,...] into and a returningStatement
-	INSERT INTO table(tag1, tag2,...) VALUES(1,2,...) returning returningStatement
- */
-func GetPostgresInsertStatementNoIncrement(t SQLTable) string {
-	paramsJoin := CommaSeparatedString(t.DataModelTag())
-	paramsPlaceholder := CommaSeparatedString(MapStringListWithPos(t.DataModelTag(), func(key int, value string) string {
-		return fmt.Sprintf("$%v", key+1)
-	}))
-
-	return fmt.Sprintf(InsertStatement, t.TableName(), paramsJoin, paramsPlaceholder)
-}
-
-/*
-	 Maps SQLTable to update statement
- */
-func CreateUpdateStatement(table SQLTable) string {
-	set := MapStringListWithPos(table.DataModelTag()[1:], func(pos int, tag string) string {
-		return fmt.Sprintf("%v = $%v", tag, pos+2)
-	})
-
-	return fmt.Sprintf("UPDATE %v SET %v WHERE %v = $1;", table.TableName(), CommaSeparatedString(set), table.KeyTag())
-}
-
-func CreateGetStatement(table SQLTable) string {
-	return fmt.Sprintf("SELECT * FROM %v WHERE %v= $1", table.TableName(), table.KeyTag())
-}
-
-// AUX CRUD functions
-
-// Create Scheme
 func (pg *SQLDB) MaybeCreateDatabase(database string) error {
 	statement := fmt.Sprintf(CreateDatabaseStatement, database)
 
@@ -153,9 +132,8 @@ func (pg *SQLDB) DropSchemaIfExist(schema string) (error) {
 	return nil
 }
 
-// Create Table
 func (pg *SQLDB) MaybeCreateTable(table SQLTable) (error) {
-	stmt, err := pg.DB.Prepare(table.CreateTableStatement())
+	stmt, err := pg.DB.Prepare(table.CreateStatement())
 	if err != nil {
 		return err
 	}
@@ -171,24 +149,14 @@ func (pg *SQLDB) MaybeCreateTable(table SQLTable) (error) {
 	return nil
 }
 
-func (db *SQLDB) InitializeDatabase(databaseName string, schema string, tables map[string]SQLTable, forceRecreate bool) error {
-	if forceRecreate {
-		err := db.DropSchemaIfExist(schema)
-		if err != nil {
-			return err
-		}
-	}
-
-	err := db.MaybeCreateScheme(schema)
+func (pg *SQLDB) DropTableIfExist(table SQLTable) (error) {
+	statement := fmt.Sprintf(DropTableStatement, table.Name())
+	stmt, err := pg.DB.Prepare(statement)
+	defer stmt.Close()
+	_, err = stmt.Exec()
 	if err != nil {
 		return err
 	}
-
-	err = db.MaybeInitializeTables(tables)
-	if err != nil {
-		return err
-	}
-
 	return nil
 }
 
@@ -204,19 +172,15 @@ func (db *SQLDB) MaybeInitializeTables(tables map[string]SQLTable) error {
 	return nil
 }
 
-// Drop Table
-func (pg *SQLDB) DropTableIfExist(table SQLTable) (error) {
-	statement := fmt.Sprintf(DropTableStatement, table.TableName())
-	stmt, err := pg.DB.Prepare(statement)
-	defer stmt.Close()
-	_, err = stmt.Exec()
-	if err != nil {
-		return err
-	}
-	return nil
-}
 
-// insert row
+
+
+/////////////////////////////////////////////////////////////////
+//
+// Statements nobody needs abstracted but sometimes helpful
+//
+/////////////////////////////////////////////////////////////////
+
 func (pg *SQLDB) Insert(table SQLTable, values []interface{}) (int, error) {
 	statement := GetPostgresInsertStatementNoIncrement(table)
 	o, err := pg.DB.Query(statement, values...)
@@ -249,7 +213,7 @@ func (pg *SQLDB) UpdateWithStatement(statement string, table SQLTable, values []
 	}
 
 	if count != 1 {
-		return fmt.Errorf("failed to update %v", table.TableName())
+		return fmt.Errorf("failed to update %v", table.Name())
 	}
 
 	return nil
@@ -257,7 +221,7 @@ func (pg *SQLDB) UpdateWithStatement(statement string, table SQLTable, values []
 
 // Delete Row
 func (pg *SQLDB) Delete(key interface{}, table SQLTable) error {
-	sqlStatement := fmt.Sprintf(DeleteStatement, table.TableName(), table.KeyTag())
+	sqlStatement := fmt.Sprintf(DeleteStatement, table.Name(), table.KeyTag())
 	_, err := pg.DB.Exec(sqlStatement, key)
 	if err != nil {
 		return err
@@ -268,7 +232,7 @@ func (pg *SQLDB) Delete(key interface{}, table SQLTable) error {
 
 // Number Of Rows
 func (pg *SQLDB) Count(table SQLTable) (int, error) {
-	sqlStatement := fmt.Sprintf(NumberOfRowsStatement, table.TableName())
+	sqlStatement := fmt.Sprintf(NumberOfRowsStatement, table.Name())
 	rows, err := pg.DB.Query(sqlStatement)
 	if err != nil {
 		return -1, err
@@ -287,7 +251,7 @@ func (pg *SQLDB) Count(table SQLTable) (int, error) {
 
 // Number Of Rows
 func (pg *SQLDB) Max(table SQLTable, column string) (int64, error) {
-	sqlStatement := fmt.Sprintf(MaxStatement, column, table.TableName())
+	sqlStatement := fmt.Sprintf(MaxStatement, column, table.Name())
 	rows, err := pg.DB.Query(sqlStatement)
 	if err != nil {
 		return -1, err
@@ -305,4 +269,36 @@ func (pg *SQLDB) Max(table SQLTable, column string) (int64, error) {
 		return max, nil
 	}
 	return -1, nil
+}
+
+
+
+// Statements
+
+/*
+	Transforms a table a model key list [tag1, tag2,...] into and a returningStatement
+	INSERT INTO table(tag1, tag2,...) VALUES(1,2,...) returning returningStatement
+ */
+func GetPostgresInsertStatementNoIncrement(t SQLTable) string {
+	paramsJoin := typesx.CommaSeparatedString(t.ColumnNames())
+	paramsPlaceholder := typesx.CommaSeparatedString(typesx.MapStringListWithPos(t.ColumnNames(), func(key int, value string) string {
+		return fmt.Sprintf("$%v", key+1)
+	}))
+
+	return fmt.Sprintf(InsertStatement, t.Name(), paramsJoin, paramsPlaceholder)
+}
+
+/*
+	 Maps SQLTable to update statement
+ */
+func CreateUpdateStatement(table SQLTable) string {
+	set := typesx.MapStringListWithPos(table.ColumnNames()[1:], func(pos int, tag string) string {
+		return fmt.Sprintf("%v = $%v", tag, pos+2)
+	})
+
+	return fmt.Sprintf("UPDATE %v SET %v WHERE %v = $1;", table.Name(), typesx.CommaSeparatedString(set), table.KeyTag())
+}
+
+func CreateGetStatement(table SQLTable) string {
+	return fmt.Sprintf("SELECT * FROM %v WHERE %v= $1", table.Name(), table.KeyTag())
 }

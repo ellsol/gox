@@ -1,4 +1,4 @@
-package gox
+package typesx
 
 type InterfaceList struct {
 	values []interface{}

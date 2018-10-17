@@ -1,4 +1,4 @@
-package gox
+package sqlx
 
 import (
 	"bytes"
@@ -27,8 +27,8 @@ func (definition *SQLTableDefinition) CreateStatement() string {
 	buffer.WriteString("(")
 
 	for k, v := range definition.Columns {
-		withComma := k != len(definition.Columns)-1
-		buffer.WriteString(v.Statement(withComma))
+		lastElement := k == len(definition.Columns)-1
+		buffer.WriteString(v.Statement(!lastElement))
 	}
 
 	buffer.WriteString(");")
@@ -111,14 +111,13 @@ func (builder *SQLTableBuilder) WithIntColumn(name string, params ...bool) *SQLT
 	return builder.WithColumnDefinition(name, "INT", params...)
 }
 
-
 func (builder *SQLTableBuilder) WithByteAColumn(name string, params ...bool) *SQLTableBuilder {
 	return builder.WithColumnDefinition(name, "BYTEA", params...)
 }
 
 func (column *SQLTableColumn) Statement(withComma bool) string {
-
 	var buffer bytes.Buffer
+
 	buffer.WriteString(column.Name)
 	buffer.WriteString(" ")
 	buffer.WriteString(column.Type)

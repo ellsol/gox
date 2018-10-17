@@ -6,13 +6,13 @@ import (
 	"os"
 )
 
-type DiskCache struct {
+type KeyValueStoreFile struct {
 	Values map[string]string
 	Path   string
 }
 
-func NewDiskCache(filename string) (*DiskCache, error) {
-	cache := new(DiskCache)
+func NewDiskCache(filename string) (*KeyValueStoreFile, error) {
+	cache := new(KeyValueStoreFile)
 	cache.Path = filename
 
 	err := cache.Load()
@@ -23,7 +23,7 @@ func NewDiskCache(filename string) (*DiskCache, error) {
 	return cache, nil
 }
 
-func (it *DiskCache) Get(key string) string {
+func (it *KeyValueStoreFile) Get(key string) string {
 	val, ok := it.Values[key]
 	if ok {
 		return val
@@ -32,14 +32,14 @@ func (it *DiskCache) Get(key string) string {
 	}
 }
 
-func (it *DiskCache) Save(key string, value string) error {
+func (it *KeyValueStoreFile) Save(key string, value string) error {
 	m := it.Values
 	m[key] = value
 
 	return it.SaveToDisk()
 }
 
-func (it *DiskCache) SaveToDisk() error {
+func (it *KeyValueStoreFile) SaveToDisk() error {
 	json, err := json.Marshal(it.Values)
 	if err != nil {
 		return err
@@ -53,7 +53,7 @@ func (it *DiskCache) SaveToDisk() error {
 	return nil
 }
 
-func (it *DiskCache) Load() error {
+func (it *KeyValueStoreFile) Load() error {
 	values := make(map[string]string, 0)
 
 	if _, err := os.Stat(it.Path); os.IsNotExist(err) {

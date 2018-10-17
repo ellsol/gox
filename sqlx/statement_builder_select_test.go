@@ -1,21 +1,22 @@
-package gox
+package sqlx
 
 import (
 	"testing"
 	"fmt"
+	"github.com/ellsol/gox/testx"
 )
 
 func TestStatementBuilder(t *testing.T) {
 
-	stb, params := NewStatementBuilder("*", "tablename").
-		AddCondition("label", 45).
+	stb, params := NewSelectStatementBuilder("*", "tablename").
+		AddEqualCondition("label", 45).
 		AddInCondition("inlabel", []string{"p1", "p2"}).
-		AddCondition("label2", 88).
+		AddEqualCondition("label2", 88).
 		AddOffset(1200).
 		AddLimit(120).GetStatementAndParams()
 
 	expectedStatement := "SELECT * FROM tablename WHERE label = $1 AND inlabel IN ($2,$3) AND label2 = $4 OFFSET $5 LIMIT $6"
-	if CompareString("statement", expectedStatement, stb, t) {
+	if testx.CompareString("statement", expectedStatement, stb, t) {
 		return
 	}
 

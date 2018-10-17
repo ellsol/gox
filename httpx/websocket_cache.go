@@ -1,4 +1,4 @@
-package gox
+package httpx
 
 import (
 	"github.com/gorilla/websocket"
