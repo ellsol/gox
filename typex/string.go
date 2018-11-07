@@ -1,4 +1,4 @@
-package typesx
+package typex
 
 import (
 	"bytes"

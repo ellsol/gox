@@ -5,7 +5,8 @@ import (
 	"fmt"
 	"database/sql"
 	_ "github.com/lib/pq"
-	"github.com/ellsol/gox/typesx"
+	"github.com/ellsol/gox/typex"
+	"log"
 )
 
 const (
@@ -23,31 +24,40 @@ const (
 )
 
 type SQLDB struct {
-	DB sql.DB
+	Connection *sql.DB
+}
+
+type SqlDBInfo struct {
+	Host     string
+	User     string
+	Password string
+	DBName   string
+}
+
+func (pi *SqlDBInfo) dbinfo() string {
+	return fmt.Sprintf("host=%s user=%s password=%s dbname=%s sslmode=disable", pi.Host, pi.User, pi.Password, pi.DBName)
 }
 
 type SQLTable interface {
 	ColumnNames() []string
 	Name() string
-	KeyTag() string
 	CreateStatement() string
 }
 
 func OpenSqlDB(params string) (*SQLDB, error) {
-	fmt.Println("Trying to open connection to postgres with: ", info.dbinfo())
-	db, err := sql.Open("postgres", params)
+	fmt.Println("Trying to open connection to postgres with: ", params)
+	connection, err := sql.Open("postgres", params)
 
 	if err != nil {
 		return nil, err
 	}
 
-	db.SetMaxIdleConns(20)
+	connection.SetMaxIdleConns(20)
 
 	return &SQLDB{
-		DB: *db,
+		Connection: connection,
 	}, nil
 }
-
 
 func (db *SQLDB) InitializeDatabase(databaseName string, schema string, tables map[string]SQLTable, forceRecreate bool) error {
 	if forceRecreate {
@@ -70,10 +80,10 @@ func (db *SQLDB) InitializeDatabase(databaseName string, schema string, tables m
 	return nil
 }
 
-func (pg *SQLDB) MaybeCreateDatabase(database string) error {
+func (it *SQLDB) MaybeCreateDatabase(database string) error {
 	statement := fmt.Sprintf(CreateDatabaseStatement, database)
 
-	stmt, err := pg.DB.Prepare(statement)
+	stmt, err := it.Connection.Prepare(statement)
 	if err != nil {
 		return nil
 	}
@@ -90,9 +100,9 @@ func (pg *SQLDB) MaybeCreateDatabase(database string) error {
 	return nil
 }
 
-func (pg *SQLDB) DropDatabaseIfExist(database string) (error) {
+func (it *SQLDB) DropDatabaseIfExist(database string) (error) {
 	statement := fmt.Sprintf(DropDatabaseStatement, database)
-	stmt, err := pg.DB.Prepare(statement)
+	stmt, err := it.Connection.Prepare(statement)
 	defer stmt.Close()
 	_, err = stmt.Exec()
 	if err != nil {
@@ -101,10 +111,10 @@ func (pg *SQLDB) DropDatabaseIfExist(database string) (error) {
 	return nil
 }
 
-func (pg *SQLDB) MaybeCreateScheme(scheme string) error {
+func (it *SQLDB) MaybeCreateScheme(scheme string) error {
 	statement := fmt.Sprintf(CreateSchemaStatement, scheme)
 
-	stmt, err := pg.DB.Prepare(statement)
+	stmt, err := it.Connection.Prepare(statement)
 	if err != nil {
 		return nil
 	}
@@ -121,9 +131,15 @@ func (pg *SQLDB) MaybeCreateScheme(scheme string) error {
 	return nil
 }
 
-func (pg *SQLDB) DropSchemaIfExist(schema string) (error) {
+func (it *SQLDB) DropSchemaIfExist(schema string) (error) {
 	statement := fmt.Sprintf(DropSchemaStatement, schema)
-	stmt, err := pg.DB.Prepare(statement)
+	log.Println("Drop statement: ", statement)
+	stmt, err := it.Connection.Prepare(statement)
+
+	if err != nil {
+		return err
+	}
+
 	defer stmt.Close()
 	_, err = stmt.Exec()
 	if err != nil {
@@ -132,8 +148,8 @@ func (pg *SQLDB) DropSchemaIfExist(schema string) (error) {
 	return nil
 }
 
-func (pg *SQLDB) MaybeCreateTable(table SQLTable) (error) {
-	stmt, err := pg.DB.Prepare(table.CreateStatement())
+func (it *SQLDB) MaybeCreateTable(table SQLTable) (error) {
+	stmt, err := it.Connection.Prepare(table.CreateStatement())
 	if err != nil {
 		return err
 	}
@@ -149,9 +165,12 @@ func (pg *SQLDB) MaybeCreateTable(table SQLTable) (error) {
 	return nil
 }
 
-func (pg *SQLDB) DropTableIfExist(table SQLTable) (error) {
+func (it *SQLDB) DropTableIfExist(table SQLTable) (error) {
 	statement := fmt.Sprintf(DropTableStatement, table.Name())
-	stmt, err := pg.DB.Prepare(statement)
+	stmt, err := it.Connection.Prepare(statement)
+	if err != nil {
+		return err
+	}
 	defer stmt.Close()
 	_, err = stmt.Exec()
 	if err != nil {
@@ -172,18 +191,15 @@ func (db *SQLDB) MaybeInitializeTables(tables map[string]SQLTable) error {
 	return nil
 }
 
-
-
-
 /////////////////////////////////////////////////////////////////
 //
-// Statements nobody needs abstracted but sometimes helpful
+// Statements nobody needs, abstracted but sometimes helpful
 //
 /////////////////////////////////////////////////////////////////
 
 func (pg *SQLDB) Insert(table SQLTable, values []interface{}) (int, error) {
-	statement := GetPostgresInsertStatementNoIncrement(table)
-	o, err := pg.DB.Query(statement, values...)
+	statement := GetPostgresInsertStatementNoIncrementOmitPrimary(table)
+	o, err := pg.Connection.Query(statement, values...)
 	if err != nil {
 		return -1, err
 	}
@@ -194,14 +210,26 @@ func (pg *SQLDB) Insert(table SQLTable, values []interface{}) (int, error) {
 	return lastInsertId, nil
 }
 
-func (pg *SQLDB) Update(table SQLTable, values []interface{}) error {
-	statement := CreateUpdateStatement(table)
+func (pg *SQLDB) InsertOmitPrimary(table SQLTable, values []interface{}) (int, error) {
+	statement := GetPostgresInsertStatementNoIncrementOmitPrimary(table) 
+	o, err := pg.Connection.Query(statement, values...)
+	if err != nil {
+		return -1, err
+	}
+	var lastInsertId int
+	o.Scan(&lastInsertId)
+	o.Close()
+
+	return lastInsertId, nil
+}
+
+func (pg *SQLDB) Update(table SQLTable, keyLabel string, values []interface{}) error {
+	statement := CreateUpdateStatement(table, keyLabel)
 	return pg.UpdateWithStatement(statement, table, values)
 }
 
-
 func (pg *SQLDB) UpdateWithStatement(statement string, table SQLTable, values []interface{}) error {
-	updated, err := pg.DB.Exec(statement, values...)
+	updated, err := pg.Connection.Exec(statement, values...)
 
 	if err != nil {
 		return err
@@ -220,9 +248,9 @@ func (pg *SQLDB) UpdateWithStatement(statement string, table SQLTable, values []
 }
 
 // Delete Row
-func (pg *SQLDB) Delete(key interface{}, table SQLTable) error {
-	sqlStatement := fmt.Sprintf(DeleteStatement, table.Name(), table.KeyTag())
-	_, err := pg.DB.Exec(sqlStatement, key)
+func (pg *SQLDB) Delete(key interface{}, keyLabel string, table SQLTable) error {
+	sqlStatement := fmt.Sprintf(DeleteStatement, table.Name(), keyLabel)
+	_, err := pg.Connection.Exec(sqlStatement, key)
 	if err != nil {
 		return err
 	}
@@ -233,7 +261,7 @@ func (pg *SQLDB) Delete(key interface{}, table SQLTable) error {
 // Number Of Rows
 func (pg *SQLDB) Count(table SQLTable) (int, error) {
 	sqlStatement := fmt.Sprintf(NumberOfRowsStatement, table.Name())
-	rows, err := pg.DB.Query(sqlStatement)
+	rows, err := pg.Connection.Query(sqlStatement)
 	if err != nil {
 		return -1, err
 	}
@@ -249,10 +277,22 @@ func (pg *SQLDB) Count(table SQLTable) (int, error) {
 	return -1, nil
 }
 
+func (it *SQLDB) CountByStatement(table SQLTable, statement string, params ... interface{}) (int, error) {
+
+	var count int
+	row := it.Connection.QueryRow(statement, params...)
+	err := row.Scan(&count)
+	if err != nil {
+		return -1, err
+	}
+
+	return count, nil
+}
+
 // Number Of Rows
 func (pg *SQLDB) Max(table SQLTable, column string) (int64, error) {
 	sqlStatement := fmt.Sprintf(MaxStatement, column, table.Name())
-	rows, err := pg.DB.Query(sqlStatement)
+	rows, err := pg.Connection.Query(sqlStatement)
 	if err != nil {
 		return -1, err
 	}
@@ -271,8 +311,6 @@ func (pg *SQLDB) Max(table SQLTable, column string) (int64, error) {
 	return -1, nil
 }
 
-
-
 // Statements
 
 /*
@@ -280,8 +318,17 @@ func (pg *SQLDB) Max(table SQLTable, column string) (int64, error) {
 	INSERT INTO table(tag1, tag2,...) VALUES(1,2,...) returning returningStatement
  */
 func GetPostgresInsertStatementNoIncrement(t SQLTable) string {
-	paramsJoin := typesx.CommaSeparatedString(t.ColumnNames())
-	paramsPlaceholder := typesx.CommaSeparatedString(typesx.MapStringListWithPos(t.ColumnNames(), func(key int, value string) string {
+	paramsJoin := typex.CommaSeparatedString(t.ColumnNames())
+	paramsPlaceholder := typex.CommaSeparatedString(typex.MapStringListWithPos(t.ColumnNames(), func(key int, value string) string {
+		return fmt.Sprintf("$%v", key+1)
+	}))
+
+	return fmt.Sprintf(InsertStatement, t.Name(), paramsJoin, paramsPlaceholder)
+}
+
+func GetPostgresInsertStatementNoIncrementOmitPrimary(t SQLTable) string {
+	paramsJoin := typex.CommaSeparatedString(t.ColumnNames()[1:])
+	paramsPlaceholder := typex.CommaSeparatedString(typex.MapStringListWithPos(t.ColumnNames()[1:], func(key int, value string) string {
 		return fmt.Sprintf("$%v", key+1)
 	}))
 
@@ -291,14 +338,10 @@ func GetPostgresInsertStatementNoIncrement(t SQLTable) string {
 /*
 	 Maps SQLTable to update statement
  */
-func CreateUpdateStatement(table SQLTable) string {
-	set := typesx.MapStringListWithPos(table.ColumnNames()[1:], func(pos int, tag string) string {
+func CreateUpdateStatement(table SQLTable, keyLabel string) string {
+	set := typex.MapStringListWithPos(table.ColumnNames()[1:], func(pos int, tag string) string {
 		return fmt.Sprintf("%v = $%v", tag, pos+2)
 	})
 
-	return fmt.Sprintf("UPDATE %v SET %v WHERE %v = $1;", table.Name(), typesx.CommaSeparatedString(set), table.KeyTag())
-}
-
-func CreateGetStatement(table SQLTable) string {
-	return fmt.Sprintf("SELECT * FROM %v WHERE %v= $1", table.Name(), table.KeyTag())
+	return fmt.Sprintf("UPDATE %v SET %v WHERE %v = $1;", table.Name(), typex.CommaSeparatedString(set), keyLabel)
 }

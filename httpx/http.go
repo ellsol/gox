@@ -86,7 +86,7 @@ func HasContentType(r *http.Request, mimetype string) bool {
 	return false
 }
 
-func showAllRoutes(router *mux.Router) {
+func ShowAllRoutes(router *mux.Router) {
 	router.Walk(func(route *mux.Route, router *mux.Router, ancestors []*mux.Route) error {
 		t, err := route.GetPathTemplate()
 		if err != nil {
@@ -97,25 +97,31 @@ func showAllRoutes(router *mux.Router) {
 	})
 }
 
-type HttpResponseMeta struct {
+type HttpStatusAndError struct {
 	StatusCode int
 	Error      error
 }
 
-var HttpResponseOk = &HttpResponseMeta{
-	StatusCode: http.StatusOK,
+func HttpResponseOk() *HttpStatusAndError {
+	return &HttpStatusAndError{
+		StatusCode: http.StatusOK,
+	}
 }
 
-func HttpInternalError(err error) *HttpResponseMeta {
-	return &HttpResponseMeta{
+func HttpInternalError(err error) *HttpStatusAndError {
+	return &HttpStatusAndError{
 		Error:      err,
 		StatusCode: http.StatusInternalServerError,
 	}
 }
 
-func HttpResourceNotFound(label string, resource string) *HttpResponseMeta {
-	return &HttpResponseMeta{
+func HttpResourceNotFound(label string, resource string) *HttpStatusAndError {
+	return &HttpStatusAndError{
 		Error:      fmt.Errorf("%v %v not found", label, resource),
 		StatusCode: http.StatusNotFound,
 	}
+}
+
+func (it HttpStatusAndError) IsError() bool {
+	return it.Error != nil
 }

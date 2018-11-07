@@ -5,27 +5,27 @@ import (
 	"github.com/Leondroids/gox"
 )
 
-func NewSelectStatementBuilder(selectors string, tableName string) (*StatementBuilder) {
+func NewSelectStatement(selectors string, tableName string) (*StatementBuilder) {
 	return &StatementBuilder{
-		Statement:         fmt.Sprintf("SELECT %v FROM %v", selectors, tableName),
-		ConditionParams:   make([]interface{}, 0),
-		ConditionPosition: 1,
+		statement:         fmt.Sprintf("SELECT %v FROM %v", selectors, tableName),
+		conditionParams:   make([]interface{}, 0),
+		conditionPosition: 1,
 	}
 }
 
 func (it *StatementBuilder) AddLikeCondition(conditionLabel string, conditionValue string) *StatementBuilder {
 	newStatement := ""
-	if !it.HasOneCondition {
-		newStatement = fmt.Sprintf("%v WHERE %v ~ '^[%v]'", it.Statement, conditionLabel, conditionValue)
+	if !it.hasOneCondition {
+		newStatement = fmt.Sprintf("%v WHERE %v ~ '^[%v]'", it.statement, conditionLabel, conditionValue)
 	} else {
-		newStatement = fmt.Sprintf("%v AND %v ~ '^[%v]'", it.Statement, conditionLabel, conditionValue)
+		newStatement = fmt.Sprintf("%v AND %v ~ '^[%v]'", it.statement, conditionLabel, conditionValue)
 	}
 
 	return &StatementBuilder{
-		Statement:         newStatement,
-		ConditionPosition: it.ConditionPosition,
-		ConditionParams:   it.ConditionParams,
-		HasOneCondition:   true,
+		statement:         newStatement,
+		conditionPosition: it.conditionPosition,
+		conditionParams:   it.conditionParams,
+		hasOneCondition:   true,
 	}
 }
 
@@ -34,29 +34,29 @@ func (it *StatementBuilder) AddInCondition(conditionLabel string, values []strin
 		return it
 	}
 
-	conditionPosCounter := it.ConditionPosition - 1
+	conditionPosCounter := it.conditionPosition - 1
 	methodPlaceholder := gox.CommaSeparatedString(gox.MapStringListWithPos(values, func(key int, value string) string {
 		conditionPosCounter++
 		return fmt.Sprintf("$%v", conditionPosCounter)
 	}))
 
 	newStatement := ""
-	if !it.HasOneCondition {
-		newStatement = fmt.Sprintf("%v WHERE %v IN (%v)", it.Statement, conditionLabel, methodPlaceholder)
+	if !it.hasOneCondition {
+		newStatement = fmt.Sprintf("%v WHERE %v IN (%v)", it.statement, conditionLabel, methodPlaceholder)
 	} else {
-		newStatement = fmt.Sprintf("%v AND %v IN (%v)", it.Statement, conditionLabel, methodPlaceholder)
+		newStatement = fmt.Sprintf("%v AND %v IN (%v)", it.statement, conditionLabel, methodPlaceholder)
 	}
 
-	params := it.ConditionParams
+	params := it.conditionParams
 	for _, v := range values {
 		params = append(params, v)
 	}
 
 	return &StatementBuilder{
-		Statement:         newStatement,
-		ConditionPosition: conditionPosCounter + 1,
-		ConditionParams:   params,
-		HasOneCondition:   true,
+		statement:         newStatement,
+		conditionPosition: conditionPosCounter + 1,
+		conditionParams:   params,
+		hasOneCondition:   true,
 	}
 }
 
@@ -68,22 +68,28 @@ func (it *StatementBuilder) MaybeAddEqualStringCondition(conditionLabel string, 
 	return it.AddEqualCondition(conditionLabel, conditionValue)
 }
 
+
+
+func (it *StatementBuilder) FilterBoolean(conditionLabel string, conditionValue bool) *StatementBuilder {
+	return it.AddEqualCondition(conditionLabel, conditionValue)
+}
+
 func (it *StatementBuilder) AddEqualCondition(conditionLabel string, conditionValue interface{}) *StatementBuilder {
 	newStatement := ""
-	if !it.HasOneCondition {
-		newStatement = fmt.Sprintf("%v WHERE %v = $%v", it.Statement, conditionLabel, it.ConditionPosition)
+	if !it.hasOneCondition {
+		newStatement = fmt.Sprintf("%v WHERE %v = $%v", it.statement, conditionLabel, it.conditionPosition)
 	} else {
-		newStatement = fmt.Sprintf("%v AND %v = $%v", it.Statement, conditionLabel, it.ConditionPosition)
+		newStatement = fmt.Sprintf("%v AND %v = $%v", it.statement, conditionLabel, it.conditionPosition)
 	}
 
-	params := it.ConditionParams
+	params := it.conditionParams
 	params = append(params, conditionValue)
 
 	return &StatementBuilder{
-		Statement:         newStatement,
-		ConditionPosition: it.ConditionPosition + 1,
-		ConditionParams:   params,
-		HasOneCondition:   true,
+		statement:         newStatement,
+		conditionPosition: it.conditionPosition + 1,
+		conditionParams:   params,
+		hasOneCondition:   true,
 	}
 }
 
@@ -127,21 +133,21 @@ func (it *StatementBuilder) AddInt64Range(conditionLabel string, from int64, to 
 func (it *StatementBuilder) AddRange(conditionLabel string, valuesFrom interface{}, valuesTo interface{}) *StatementBuilder {
 
 	newStatement := ""
-	if !it.HasOneCondition {
-		newStatement = fmt.Sprintf("%v WHERE %v BETWEEN $%v AND $%v", it.Statement, conditionLabel, it.ConditionPosition, it.ConditionPosition+1)
+	if !it.hasOneCondition {
+		newStatement = fmt.Sprintf("%v WHERE %v BETWEEN $%v AND $%v", it.statement, conditionLabel, it.conditionPosition, it.conditionPosition+1)
 	} else {
-		newStatement = fmt.Sprintf("%v AND %v BETWEEN $%v AND $%v", it.Statement, conditionLabel, it.ConditionPosition, it.ConditionPosition+1)
+		newStatement = fmt.Sprintf("%v AND %v BETWEEN $%v AND $%v", it.statement, conditionLabel, it.conditionPosition, it.conditionPosition+1)
 	}
 
-	params := it.ConditionParams
+	params := it.conditionParams
 	params = append(params, valuesFrom)
 	params = append(params, valuesTo)
 
 	return &StatementBuilder{
-		Statement:         newStatement,
-		ConditionPosition: it.ConditionPosition + 2,
-		ConditionParams:   params,
-		HasOneCondition:   true,
+		statement:         newStatement,
+		conditionPosition: it.conditionPosition + 2,
+		conditionParams:   params,
+		hasOneCondition:   true,
 	}
 }
 
@@ -156,13 +162,13 @@ func (it *StatementBuilder) OrderBy(orderBy *StatementOrderBy) *StatementBuilder
 		direction = "ASC"
 	}
 
-	newStatement := fmt.Sprintf("%v ORDER BY %v %v", it.Statement, orderBy.By, direction)
+	newStatement := fmt.Sprintf("%v ORDER BY %v %v", it.statement, orderBy.By, direction)
 
 	return &StatementBuilder{
-		Statement:         newStatement,
-		ConditionPosition: it.ConditionPosition,
-		ConditionParams:   it.ConditionParams,
-		HasOneCondition:   true,
+		statement:         newStatement,
+		conditionPosition: it.conditionPosition,
+		conditionParams:   it.conditionParams,
+		hasOneCondition:   true,
 	}
 }
 
@@ -171,16 +177,16 @@ func (it *StatementBuilder) AddOffset(value int) *StatementBuilder {
 		return it
 	}
 
-	newStatement := fmt.Sprintf("%v OFFSET $%v", it.Statement, it.ConditionPosition)
+	newStatement := fmt.Sprintf("%v OFFSET $%v", it.statement, it.conditionPosition)
 
-	params := it.ConditionParams
+	params := it.conditionParams
 	params = append(params, value)
 
 	return &StatementBuilder{
-		Statement:         newStatement,
-		ConditionPosition: it.ConditionPosition + 1,
-		ConditionParams:   params,
-		HasOneCondition:   true,
+		statement:         newStatement,
+		conditionPosition: it.conditionPosition + 1,
+		conditionParams:   params,
+		hasOneCondition:   true,
 	}
 }
 
@@ -189,28 +195,28 @@ func (it *StatementBuilder) AddLimit(value int) *StatementBuilder {
 		return it
 	}
 
-	newStatement := fmt.Sprintf("%v LIMIT $%v", it.Statement, it.ConditionPosition)
+	newStatement := fmt.Sprintf("%v LIMIT $%v", it.statement, it.conditionPosition)
 
-	params := it.ConditionParams
+	params := it.conditionParams
 	params = append(params, value)
 
 	return &StatementBuilder{
-		Statement:         newStatement,
-		ConditionPosition: it.ConditionPosition + 1,
-		ConditionParams:   params,
-		HasOneCondition:   true,
+		statement:         newStatement,
+		conditionPosition: it.conditionPosition + 1,
+		conditionParams:   params,
+		hasOneCondition:   true,
 	}
 }
 
 func (it *StatementBuilder) GetStatementAndParams() (string, []interface{}) {
-	return it.Statement, it.ConditionParams
+	return it.statement, it.conditionParams
 }
 
 type StatementBuilder struct {
-	Statement         string
-	ConditionPosition int
-	ConditionParams   []interface{}
-	HasOneCondition   bool
+	statement         string
+	conditionPosition int
+	conditionParams   []interface{}
+	hasOneCondition   bool
 }
 
 type StatementOrderBy struct {

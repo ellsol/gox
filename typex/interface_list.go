@@ -1,4 +1,4 @@
-package typesx
+package typex
 
 type InterfaceList struct {
 	values []interface{}

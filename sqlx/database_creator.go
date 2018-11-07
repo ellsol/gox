@@ -26,6 +26,11 @@ func NewDatabaseCreator(databaseName string) *DatabaseCreator {
 	}
 }
 
+
+func NewDatabaseCreatorWithInfo(info *SqlDBInfo) *DatabaseCreator {
+	return NewDatabaseCreator(info.DBName).WithHost(info.Host).WithUser(info.User).WithPassword(info.Password)
+}
+
 func (builder *DatabaseCreator) WithHost(host string) *DatabaseCreator {
 	builder.Host = host
 	return builder
@@ -87,7 +92,7 @@ func (it *DatabaseCreator) OpenAndInitializeDB(forceRecreate bool) (*SQLDB, erro
 	}
 
 	// reopen connection with correct database
-	err = db.DB.Close()
+	err = db.Connection.Close()
 	if err != nil {
 		return nil, err
 	}
@@ -102,7 +107,7 @@ func (it *DatabaseCreator) OpenAndInitializeDB(forceRecreate bool) (*SQLDB, erro
 		return nil, err
 	}
 
-	err = db.DB.Ping()
+	err = db.Connection.Ping()
 	if err != nil {
 		return nil, err
 	}

@@ -5,13 +5,13 @@ import (
 )
 
 
-type CreateStatementBuilder struct {
+type ColumnDefinition struct {
 	TableName string
 	Columns   []TableColumn
 }
 
-func NewCreateStatementBuilder(tableName string) *CreateStatementBuilder {
-	return &CreateStatementBuilder{
+func NewColumnDefinition(tableName string) *ColumnDefinition {
+	return &ColumnDefinition{
 		TableName: tableName,
 		Columns:   make([]TableColumn, 0),
 	}
@@ -20,7 +20,7 @@ func NewCreateStatementBuilder(tableName string) *CreateStatementBuilder {
 /*
 	Encodes column definition as SQL string
  */
-func (it *CreateStatementBuilder) SqlString() string {
+func (it *ColumnDefinition) SqlString() string {
 	var buffer bytes.Buffer
 
 	buffer.WriteString("CREATE TABLE ")
@@ -36,7 +36,19 @@ func (it *CreateStatementBuilder) SqlString() string {
 	return buffer.String()
 }
 
-func (it *CreateStatementBuilder) WithColumnDefinition(name string, valueType string, notNull bool) *CreateStatementBuilder {
+
+func (it *ColumnDefinition) ColumnNames() []string {
+	result := make([]string, 0)
+
+	for _, v := range it.Columns {
+		result = append(result, v.Name)
+	}
+
+	return result
+}
+
+
+func (it *ColumnDefinition) WithColumnDefinition(name string, valueType string, notNull bool) *ColumnDefinition {
 	col := TableColumn{
 		Name:      name,
 		NotNull:   notNull,
@@ -50,7 +62,7 @@ func (it *CreateStatementBuilder) WithColumnDefinition(name string, valueType st
 /*
 	Gets the last column element and marks it as primary
  */
-func (it *CreateStatementBuilder) AsPrimary() *CreateStatementBuilder {
+func (it *ColumnDefinition) AsPrimary() *ColumnDefinition {
 	lastElementPos := len(it.Columns) - 1
 
 	// ignore if no element set yet
@@ -62,32 +74,32 @@ func (it *CreateStatementBuilder) AsPrimary() *CreateStatementBuilder {
 	lastElement.IsPrimary = true
 
 	// need to put it back
-	it.Columns = append(it.Columns[:lastElementPos-1], lastElement)
+	it.Columns = append(it.Columns[:lastElementPos], lastElement)
 
 	return it
 }
 
-func (builder *CreateStatementBuilder) WithSerialColumn(name string, notNull bool) *CreateStatementBuilder {
-	return builder.WithColumnDefinition(name, "SERIAL", notNull)
+func (builder *ColumnDefinition) WithSerialColumn(name string) *ColumnDefinition {
+	return builder.WithColumnDefinition(name, "SERIAL", false)
 }
 
-func (builder *CreateStatementBuilder) WithTextColumn(name string, notNull bool) *CreateStatementBuilder {
+func (builder *ColumnDefinition) WithTextColumn(name string, notNull bool) *ColumnDefinition {
 	return builder.WithColumnDefinition(name, "TEXT", notNull)
 }
 
-func (builder *CreateStatementBuilder) WithBooleanColumn(name string, notNull bool) *CreateStatementBuilder {
+func (builder *ColumnDefinition) WithBooleanColumn(name string, notNull bool) *ColumnDefinition {
 	return builder.WithColumnDefinition(name, "BOOLEAN", NotNull)
 }
 
-func (builder *CreateStatementBuilder) WithBigIntColumn(name string, notNull bool) *CreateStatementBuilder {
+func (builder *ColumnDefinition) WithBigIntColumn(name string, notNull bool) *ColumnDefinition {
 	return builder.WithColumnDefinition(name, "BIGINT", notNull)
 }
 
-func (builder *CreateStatementBuilder) WithIntColumn(name string, notNull bool) *CreateStatementBuilder {
+func (builder *ColumnDefinition) WithIntColumn(name string, notNull bool) *ColumnDefinition {
 	return builder.WithColumnDefinition(name, "INT", notNull)
 }
 
-func (builder *CreateStatementBuilder) WithByteAColumn(name string,  notNull bool) *CreateStatementBuilder {
+func (builder *ColumnDefinition) WithByteAColumn(name string,  notNull bool) *ColumnDefinition {
 	return builder.WithColumnDefinition(name, "BYTEA", notNull)
 }
 
@@ -126,4 +138,3 @@ func (column *TableColumn) Statement(withComma bool) string {
 
 	return buffer.String()
 }
-

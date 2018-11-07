@@ -8,7 +8,7 @@ import (
 
 func TestStatementBuilder(t *testing.T) {
 
-	stb, params := NewSelectStatementBuilder("*", "tablename").
+	stb, params := NewSelectStatement("*", "tablename").
 		AddEqualCondition("label", 45).
 		AddInCondition("inlabel", []string{"p1", "p2"}).
 		AddEqualCondition("label2", 88).
