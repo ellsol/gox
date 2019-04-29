@@ -1,12 +1,12 @@
 package sqlx
 
 import (
-	"strings"
-	"fmt"
 	"database/sql"
-	_ "github.com/lib/pq"
+	"fmt"
 	"github.com/ellsol/gox/typex"
+	_ "github.com/lib/pq"
 	"log"
+	"strings"
 )
 
 const (
@@ -60,6 +60,7 @@ func OpenSqlDB(params string) (*SQLDB, error) {
 }
 
 func (db *SQLDB) InitializeDatabase(databaseName string, schema string, tables map[string]SQLTable, forceRecreate bool) error {
+	logMsg(fmt.Sprintf("initializing db %v with scheme %v and forceRecreate: %v", databaseName, schema, forceRecreate))
 	if forceRecreate {
 		err := db.DropSchemaIfExist(schema)
 		if err != nil {
@@ -112,8 +113,9 @@ func (it *SQLDB) DropDatabaseIfExist(database string) (error) {
 }
 
 func (it *SQLDB) MaybeCreateScheme(scheme string) error {
+	logMsg(fmt.Sprintf("Maybe create schema %v", scheme))
 	statement := fmt.Sprintf(CreateSchemaStatement, scheme)
-
+	logMsg(fmt.Sprintf("Maybe create schema statement: %v", statement))
 	stmt, err := it.Connection.Prepare(statement)
 	if err != nil {
 		return nil
@@ -121,7 +123,7 @@ func (it *SQLDB) MaybeCreateScheme(scheme string) error {
 	defer stmt.Close()
 	_, err = stmt.Exec()
 	if err != nil {
-
+		logMsg(err.Error())
 		if strings.Contains(err.Error(), "already exists") {
 			return nil
 		}
@@ -132,8 +134,9 @@ func (it *SQLDB) MaybeCreateScheme(scheme string) error {
 }
 
 func (it *SQLDB) DropSchemaIfExist(schema string) (error) {
+	logMsg(fmt.Sprintf("Dropping schema %v", schema))
 	statement := fmt.Sprintf(DropSchemaStatement, schema)
-	log.Println("Drop statement: ", statement)
+	logMsg(fmt.Sprintf("Dropping schema statement: %v", statement))
 	stmt, err := it.Connection.Prepare(statement)
 
 	if err != nil {
@@ -142,13 +145,12 @@ func (it *SQLDB) DropSchemaIfExist(schema string) (error) {
 
 	defer stmt.Close()
 	_, err = stmt.Exec()
-	if err != nil {
-		return err
-	}
-	return nil
+
+	return err
 }
 
 func (it *SQLDB) MaybeCreateTable(table SQLTable) (error) {
+	logMsg(table.CreateStatement())
 	stmt, err := it.Connection.Prepare(table.CreateStatement())
 	if err != nil {
 		return err
@@ -198,7 +200,7 @@ func (db *SQLDB) MaybeInitializeTables(tables map[string]SQLTable) error {
 /////////////////////////////////////////////////////////////////
 
 func (pg *SQLDB) Insert(table SQLTable, values []interface{}) (int, error) {
-	statement := GetPostgresInsertStatementNoIncrementOmitPrimary(table)
+	statement := GetPostgresInsertStatementNoIncrement(table)
 	o, err := pg.Connection.Query(statement, values...)
 	if err != nil {
 		return -1, err
@@ -344,4 +346,12 @@ func CreateUpdateStatement(table SQLTable, keyLabel string) string {
 	})
 
 	return fmt.Sprintf("UPDATE %v SET %v WHERE %v = $1;", table.Name(), typex.CommaSeparatedString(set), keyLabel)
+}
+
+var LogDatabase bool = true
+
+func logMsg(msg string) {
+	if(LogDatabase) {
+		log.Println(msg)
+	}
 }

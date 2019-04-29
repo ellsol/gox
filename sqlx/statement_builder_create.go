@@ -104,6 +104,8 @@ func (builder *ColumnDefinition) WithByteAColumn(name string,  notNull bool) *Co
 }
 
 
+
+
 //////////////////////////////////////
 //
 // TableColumn

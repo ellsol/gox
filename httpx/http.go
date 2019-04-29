@@ -2,14 +2,14 @@ package httpx
 
 import (
 	"encoding/json"
-	"net/http"
-	"time"
-	"log"
-	"github.com/rs/cors"
-	"github.com/gorilla/mux"
-	"strings"
-	"mime"
 	"fmt"
+	"github.com/gorilla/mux"
+	"github.com/rs/cors"
+	"log"
+	"mime"
+	"net/http"
+	"strings"
+	"time"
 )
 
 var LogRequest = true
@@ -122,6 +122,20 @@ func HttpResourceNotFound(label string, resource string) *HttpStatusAndError {
 	}
 }
 
+func HttpConflict(msg string) *HttpStatusAndError {
+	return &HttpStatusAndError{
+		Error:      fmt.Errorf("conflict: %v", msg),
+		StatusCode: http.StatusConflict,
+	}
+}
+
 func (it HttpStatusAndError) IsError() bool {
 	return it.Error != nil
+}
+
+func HttpBadRequest(msg string) *HttpStatusAndError {
+	return &HttpStatusAndError{
+		Error:      fmt.Errorf("bad request: %v", msg),
+		StatusCode: http.StatusBadRequest,
+	}
 }

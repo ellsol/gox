@@ -120,3 +120,8 @@ func ConsoleTestColors() {
 		fmt.Println(bb)
 	}
 }
+
+
+func PrintColoredln(label string, value interface{}) {
+	fmt.Print(ConsoleWriteLabeledValueI(label, value))
+}
